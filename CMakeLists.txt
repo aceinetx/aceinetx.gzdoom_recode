@@ -15,7 +15,7 @@ set(LIBMEM_DOWNLOAD_VERSION "5.0.2")
 find_package(libmem CONFIG REQUIRED)
 
 include_directories("include")
-set(SOURCES "dllmain.cpp" "include/imgui_hook.cpp" "include/kiero/kiero.cpp" "include/kiero/minhook/src/buffer.c" "include/kiero/minhook/src/hook.c" "include/kiero/minhook/src/trampoline.c" "include/kiero/minhook/src/hde/hde32.c" "include/kiero/minhook/src/hde/hde64.c" "style.cpp")
+set(SOURCES "dllmain.cpp" "include/imgui_hook.cpp" "include/kiero/kiero.cpp" "include/kiero/minhook/src/buffer.c" "include/kiero/minhook/src/hook.c" "include/kiero/minhook/src/trampoline.c" "include/kiero/minhook/src/hde/hde32.c" "include/kiero/minhook/src/hde/hde64.c" "style.cpp" "gzdoom.cpp" "interface.cpp")
 set(IMGUI_SOURCES "include/imgui/imgui.cpp" "include/imgui/imgui_demo.cpp" "include/imgui/imgui_draw.cpp" "include/imgui/imgui_impl_opengl2.cpp" "include/imgui/imgui_impl_win32.cpp" "include/imgui/imgui_tables.cpp" "include/imgui/imgui_widgets.cpp")
 
 include_directories("include" "include/imgui" "include/kiero" "include/kiero/minhook/src" "include/kiero/minhook/include" "include/kiero/minhook/src/hde")

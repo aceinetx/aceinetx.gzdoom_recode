@@ -1,110 +1,16 @@
 #include <Windows.h>
-#include "include/imgui_hook.h"
-#include "include/imgui/imgui.h"
-#include "include/kiero/minhook/include/MinHook.h"
-#include "include/style.h"
-#include "include/player_t.h"
-#include "include/aactor.h"
-#include "include/FLevelLocals.h"
-#include "libmem/libmem.hpp"
+#include <imgui_hook.h>
+#include <imgui.h>
+#include <MinHook.h>
+#include <style.h>
+#include <player_t.h>
+#include <aactor.h>
+#include <FLevelLocals.h>
+#include <libmem/libmem.hpp>
 #include <minhook/include/MinHook.h>
-
-#define fnptr(retType, name, ...) retType (*name)(__VA_ARGS__)
-
-#pragma region vars
-bool initalized = false;
-bool menu_open = true;
-bool debug_mode = false;
-
-float screenWidth = (float)GetSystemMetrics(SM_CXSCREEN);
-float screenHeight = (float)GetSystemMetrics(SM_CYSCREEN);
-float menu_depth = 4;
-float menu_size = (screenWidth + screenHeight) / menu_depth;
-float scale_factor = 0.0f;
-bool animating = false;
-float animation_duration = 0.3f;
-float animation_start_time = 0.0f;
-int page = 0;
-
-char popup_message[256];
-int popup_frame = 0;
-
-int target_hud_frame = 0;
-AActor *target_hud_actor = nullptr;
-
-int hooked_functions = 0;
-#pragma endregion
-
-bool invincibility = false;
-bool one_hit_kill = false;
-bool cant_hit_yourself = false;
-bool infinite_melee_range = false;
-
-namespace GZDoom
-{
-	uintptr_t base;
-	uintptr_t doDamage;
-
-	FLevelLocals *level = 0;
-	AActor *local_player_actor = 0;
-
-	float *fov = 0;
-
-	typedef fnptr(int, AActorGetMaxHealth_t, AActor *, bool);
-	AActorGetMaxHealth_t AActorGetMaxHealth;
-
-	fnptr(void, DoDamageMobj, AActor *dmgtarget, AActor *inflictor, AActor *source, int amount, short fname, int flags, long angle);
-	void DoDamageMobj_Hook(AActor *dmgtarget, AActor *inflictor, AActor *source, int amount, short fname, int flags, long angle)
-	{
-		if (source == local_player_actor || true)
-		{
-			if (one_hit_kill)
-			{
-				amount = *(int *)((uintptr_t)dmgtarget + 0x2A0);
-			}
-			if (cant_hit_yourself)
-			{
-				if (dmgtarget == local_player_actor && source == local_player_actor)
-				{
-					amount = 0;
-				}
-			}
-
-			snprintf(popup_message, sizeof(popup_message), "Dealt %d damage", amount);
-			if (debug_mode)
-			{
-				snprintf(popup_message, sizeof(popup_message), "%p Dealt %d damage to %p", source, amount, dmgtarget);
-			}
-			popup_frame = 500;
-		}
-		if (invincibility)
-		{
-			if (dmgtarget == local_player_actor)
-			{
-				amount = 0;
-			}
-		}
-
-		if (target_hud_actor != dmgtarget && source == GZDoom::local_player_actor)
-		{
-			target_hud_actor = dmgtarget;
-			target_hud_frame = 1000;
-		}
-		DoDamageMobj(dmgtarget, inflictor, source, amount, fname, flags, angle);
-	}
-
-	fnptr(__int64, PatchAmmo, unsigned int ammoNum, int flags);
-	__int64 PatchAmmo_Hook(unsigned int ammoNum, int flags)
-	{
-		if (ammoNum < 0)
-		{
-			ammoNum = 0;
-		}
-		ammoNum = 0;
-
-		return PatchAmmo(ammoNum, flags);
-	}
-};
+#include <gzdoom.h>
+#include <interface.h>
+#include <globals.h>
 
 float EaseInOut(float t)
 {
@@ -114,10 +20,25 @@ float EaseInOut(float t)
 		return -1.0f + (4.0f - 2.0f * t) * t; // Ease out
 }
 
-#define CreateAndEnableHook(from, to, trampoline)                               \
-	if (MH_CreateHook((LPVOID)(from), (LPVOID)to, (LPVOID *)trampoline) == MH_OK) \
-		if (MH_EnableHook((LPVOID)(from)) == MH_OK)                                 \
-			hooked_functions++;
+void RenderProgressBar(float targetProgress, float deltaTime, const ImVec2 &size_arg = ImVec2(-(1.1754944E-38F), 0))
+{
+	static float currentProgress = 0.0f; // Current progress value
+	static float animationSpeed = 2.0f;	 // Speed of the animation
+
+	// Update current progress towards target progress
+	if (std::abs(currentProgress - targetProgress) > 0.01f)
+	{
+		currentProgress += (targetProgress - currentProgress) * animationSpeed * deltaTime;
+	}
+	else
+	{
+		currentProgress = targetProgress; // Snap to target if close enough
+	}
+
+	// Render the progress bar
+	ImGui::ProgressBar(currentProgress, ImVec2(0.0f, 0.0f));
+}
+
 void RenderMain()
 {
 	float current_time = (float)GetTickCount() / 1000.0f;
@@ -132,6 +53,7 @@ void RenderMain()
 		GZDoom::AActorGetMaxHealth = (GZDoom::AActorGetMaxHealth_t)(GZDoom::base + 0x27F510);
 
 		SetupImGuiStyle();
+
 		initalized = true;
 
 		animation_start_time = current_time;
@@ -172,7 +94,7 @@ void RenderMain()
 
 	if (scale_factor > 0.0f)
 	{
-		ImGui::Begin("aceinetx.gzdoom RECODE", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse);
+		ImGui::Begin("aceinetx.gzdoom RECODE (for gzdoom g4.13.1)", nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoTitleBar);
 
 		if (ImGui::Button("Hacks", {button_width, 50}))
 		{
@@ -196,6 +118,7 @@ void RenderMain()
 			ImGui::Checkbox("Invincibility", &invincibility);
 			ImGui::Checkbox("One hit kill", &one_hit_kill);
 			ImGui::Checkbox("Can't hit yourself", &cant_hit_yourself);
+			ImGui::Checkbox("Target HUD", &target_hud);
 
 			if (GZDoom::local_player_actor != 0)
 			{
@@ -257,33 +180,44 @@ void RenderMain()
 
 	if (popup_frame > 0)
 	{
-		ImGui::SetNextWindowSize({500, 30});
-		ImGui::SetNextWindowPos({50, screenHeight - 50});
+		ImVec4 backgroundColor = ImVec4(0.1f, 0.1f, 0.1f, 0.5f);
+		ImGui::PushStyleColor(ImGuiCol_WindowBg, backgroundColor);
+
+		ImGui::SetNextWindowSize({500, 50});
+		ImGui::SetNextWindowPos({screenWidth / 2 - 500 / 2, screenHeight - 200});
 		ImGui::Begin("popup", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
 		ImGui::Text("%s", popup_message);
 		ImGui::End();
 		popup_frame--;
+
+		ImGui::PopStyleColor();
 	}
 
 	if (target_hud_frame > 0 && target_hud_actor != nullptr)
 	{
-		ImGui::SetNextWindowSize({120, 30});
-		ImGui::SetNextWindowPos({0, screenHeight / 2});
-		ImGui::Begin("targethud", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
-		ImGui::ProgressBar((float)target_hud_actor->Health / GZDoom::AActorGetMaxHealth(target_hud_actor, true), {100, 15});
-		ImGui::End();
+		if (target_hud)
+		{
+			ImGui::SetNextWindowSize({120, 50});
+			ImGui::SetNextWindowPos({screenWidth / 2 - 120 / 2, screenHeight / 2 + 20});
+			ImGui::Begin("targethud", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBackground);
+			RenderProgressBar((float)target_hud_actor->Health / GZDoom::AActorGetMaxHealth(target_hud_actor, true), 0.016f, {100, 15});
+			ImGui::End();
+		}
 		target_hud_frame--;
 
-		if (target_hud_actor->Health <= 0)
+		if (target_hud_actor->Health <= 0 && target_hud_wait_until_close == false)
 		{
-			target_hud_frame = 0;
+			target_hud_frame = 200;
+			target_hud_wait_until_close = true;
 		}
 
 		if (target_hud_frame <= 0)
 		{
 			target_hud_actor = nullptr;
+			target_hud_wait_until_close = false;
 		}
 	}
+	RenderInterface();
 
 	if (GetAsyncKeyState('K') & 0x1)
 	{

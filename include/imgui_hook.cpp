@@ -5,6 +5,7 @@
 #include "imgui/imgui.h"
 #include "imgui/imgui_impl_win32.h"
 #include "imgui/imgui_impl_opengl2.h"
+#include <font.h>
 
 #define _CAST(t, v) reinterpret_cast<t>(v)
 #define _VOID_1(v) std::function<void(v)>
@@ -160,6 +161,10 @@ namespace ImGuiHook
 
 		tStatus &= ImGui_ImplWin32_Init(hWnd);
 		tStatus &= ImGui_ImplOpenGL2_Init();
+
+		ImFontConfig font;
+		font.FontDataOwnedByAtlas = false;
+		ImGui::GetIO().Fonts->AddFontFromMemoryTTF((void *)fontData, sizeof(fontData), 18.0f, &font);
 
 		*init = true;
 		return ExitStatus(status, tStatus);
